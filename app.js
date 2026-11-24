@@ -44,6 +44,15 @@
 
   function stopLoop() { running = false; }
 
+  // On libère la caméra dès qu'on quitte l'écran photo (batterie, voyant allumé).
+  function stopCamera() {
+    running = false;
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = null; track = null; torchOn = false;
+    video.srcObject = null;
+    $('btnTorch').hidden = true; $('btnTorch').textContent = 'Flash';
+  }
+
   // L'aperçu montre toute l'image de la caméra (comme l'app photo native),
   // pour que ce que l'utilisateur voit soit exactement ce qui est analysé et envoyé.
   function layout() {
@@ -156,7 +165,15 @@
 
   function show(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
-    if (id === 'camera' && stream) { prevSmall = null; okStreak = 0; running = true; loop(); }
+    if (id === 'camera') {
+      prevSmall = null; okStreak = 0;
+      if (stream) { running = true; loop(); } else startCamera();
+    } else if (id === 'home') {
+      stopCamera();
+      refreshStatus();
+    } else {
+      running = false; // aperçu : la caméra reste prête pour « Refaire »
+    }
   }
 
   // Import d'une photo déjà prise (galerie) : même analyse et redressement
@@ -180,22 +197,66 @@
     clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), ms);
   }
 
-  async function refreshBadge() {
-    try {
-      const n = (await Uploader.queue.all()).length;
-      $('queueBadge').hidden = !n;
-      $('queueBadge').textContent = n + (n > 1 ? ' photos en attente' : ' photo en attente');
-    } catch (e) {}
+  // ---------- État des envois (écran d'accueil) ----------
+  let sending = false, lastError = '', lastSentAt = 0, thumbs = [];
+  const heure = t => new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const jour = t => new Date(t).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+
+  async function refreshStatus() {
+    let items = [];
+    try { items = await Uploader.queue.all(); } catch (e) {}
+    const n = items.length;
+    $('queueBadge').hidden = !n;
+    $('queueBadge').textContent = n + (n > 1 ? ' en attente' : ' en attente');
+
+    const box = $('status');
+    box.className = 'status' + (n ? (lastError && !sending ? ' err' : ' wait') : '');
+    if (!n) {
+      $('statusTitle').textContent = '✔ Toutes vos factures sont envoyées';
+      $('statusDetail').textContent = lastSentAt ? 'Dernier envoi à ' + heure(lastSentAt) + '.' : '';
+    } else if (sending) {
+      $('statusTitle').textContent = '⏳ Envoi en cours…';
+      $('statusDetail').textContent = n > 1 ? n + ' photos à envoyer.' : '1 photo à envoyer.';
+    } else {
+      $('statusTitle').textContent = n > 1 ? n + ' photos pas encore envoyées' : '1 photo pas encore envoyée';
+      $('statusDetail').textContent = /gardée/.test(lastError) ? lastError
+        : (lastError || 'Elles partiront toutes seules dès que possible.') + ' Elles sont bien gardées sur le téléphone.';
+    }
+    $('btnRetry').hidden = !n || sending;
+    $('btnCodeHome').textContent = Uploader.getCode() ? 'Code client : ' + Uploader.getCode() : 'Code client';
+
+    thumbs.forEach(u => URL.revokeObjectURL(u)); thumbs = [];
+    const ul = $('pendingList'); ul.textContent = '';
+    if (!sending) for (const it of items) {
+      const li = document.createElement('li');
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(it.blob); thumbs.push(img.src); img.alt = '';
+      const txt = document.createElement('span');
+      txt.textContent = 'Photo du ' + jour(it.at) + ' à ' + heure(it.at);
+      const del = document.createElement('button');
+      del.type = 'button'; del.textContent = 'Supprimer';
+      del.onclick = async () => {
+        if (!confirm('Supprimer cette photo ? Elle ne sera pas envoyée.')) return;
+        await Uploader.queue.remove(it.id); refreshStatus();
+      };
+      li.append(img, txt, del); ul.append(li);
+    }
   }
 
   async function flushQueue() {
+    if (sending) return;
+    sending = true; refreshStatus();
     try {
       const n = await Uploader.flush();
-      if (n) toast(n > 1 ? `${n} factures envoyées ✔` : 'Facture envoyée ✔');
+      lastError = '';
+      if (n) { lastSentAt = Date.now(); toast(n > 1 ? `${n} factures envoyées ✔` : 'Facture envoyée ✔'); }
     } catch (e) {
-      toast(e.refused ? 'Envoi refusé : ' + e.message : 'Pas de réseau : la photo partira dès que possible');
+      lastError = e.refused ? e.message : (navigator.onLine
+        ? 'Le serveur ne répond pas pour le moment.'
+        : 'Pas de connexion Internet.');
     }
-    refreshBadge();
+    sending = false;
+    refreshStatus();
   }
 
   function onSend() {
@@ -203,31 +264,29 @@
     if (!blob) return;
     if (!Uploader.getCode()) { askCode('Entrez votre code client pour envoyer la photo.'); return; }
     // D'abord en file d'attente (rien n'est perdu sans réseau), puis envoi.
-    Uploader.queue.add(blob, name).then(refreshBadge).then(flushQueue);
-    show('camera');
-    toast('Envoi en cours…', 1500);
+    // Retour à l'accueil : la personne voit tout de suite si la facture est partie.
+    Uploader.queue.add(blob, name).then(refreshStatus).then(flushQueue);
+    currentBlob = null;
+    show('home');
   }
 
   // ---------- Client ----------
   async function checkClient() {
-    const pill = $('btnDrive');
+    const pill = $('homeClient');
     if (!Uploader.getCode()) { askCode(); return; }
-    pill.textContent = 'Vérification du lien…';
     try {
       const r = await Uploader.check();
       if (r.ok) {
-        pill.textContent = 'Envoi vers : ' + r.client;
-        pill.classList.add('connected');
+        pill.textContent = r.client;
         $('codeOverlay').hidden = true;
         flushQueue();
       } else {
         pill.textContent = 'Lien non valide';
-        pill.classList.remove('connected');
         askCode(r.error === 'nocode' ? '' : r.error + '. Vérifiez votre code ou contactez la personne qui vous a envoyé l\'application.');
       }
     } catch (e) {
       // Hors-ligne : on garde le code connu, les photos attendront
-      pill.textContent = 'Hors-ligne · code ' + Uploader.getCode();
+      pill.textContent = 'Factures';
     }
   }
 
@@ -239,11 +298,16 @@
 
   // ---------- Événements ----------
   $('btnStart').onclick = startCamera;
+  $('btnPhoto').onclick = () => show('camera');
+  $('btnBack').onclick = () => show('home');
+  $('queueBadge').onclick = () => show('home');
+  $('btnRetry').onclick = flushQueue;
+  $('btnCodeHome').onclick = () => askCode();
+  $('fileInputHome').onchange = e => e.target.files[0] && importFile(e.target.files[0]);
   $('btnShoot').onclick = capture;
   $('btnRetake').onclick = () => show('camera');
   $('btnSend').onclick = onSend;
   $('fileInput').onchange = e => e.target.files[0] && importFile(e.target.files[0]);
-  $('btnDrive').onclick = () => askCode();
   $('btnCode').onclick = () => { Uploader.setCode($('codeInput').value); checkClient(); };
   $('btnTorch').onclick = () => {
     torchOn = !torchOn;
@@ -254,10 +318,11 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden) flushQueue(); });
 
   checkClient();
-  refreshBadge();
+  refreshStatus();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
-  // Démarrage : on tente directement, sinon bouton (iOS exige parfois un geste)
-  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) startCamera();
-  else { $('startOverlay').hidden = false; $('startError').textContent = 'Ce navigateur ne permet pas d\'utiliser la caméra. Utilisez Chrome (Android) ou Safari (iPhone).'; }
+  // Démarrage sur l'accueil : la caméra ne s'ouvre qu'avec « Photographier une facture ».
+  if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+    $('btnPhoto').onclick = () => toast('Ce navigateur ne permet pas d\'utiliser l\'appareil photo. Utilisez Chrome (Android) ou Safari (iPhone), ou « Choisir une photo déjà prise ».', 6000);
+  }
 })();

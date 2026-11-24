@@ -119,7 +119,8 @@
     let sent = 0;
     try {
       for (const it of await queue.all()) {
-        await upload(it.blob, it.name, it.c || code);
+        // Code actuel d'abord : un téléphone = un client ; après un « Nouveau lien », les photos en attente partent quand même.
+        await upload(it.blob, it.name, code || it.c);
         await queue.remove(it.id);
         sent++;
       }

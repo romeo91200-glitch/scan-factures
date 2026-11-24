@@ -13,14 +13,32 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- Écran d'accueil : l'appareil photo ne s'ouvre que sur demande -->
+  <section id="home" class="screen active">
+    <div class="home">
+      <p id="homeClient" class="home-client">Factures</p>
+      <button id="btnPhoto" class="big" type="button"><span aria-hidden="true">📷</span> Photographier une facture</button>
+
+      <div id="status" class="status">
+        <p id="statusTitle" class="status-title">…</p>
+        <p id="statusDetail" class="status-detail"></p>
+        <button id="btnRetry" class="secondary" type="button" hidden>Réessayer l'envoi</button>
+        <ul id="pendingList" class="pending"></ul>
+      </div>
+
+      <label class="primary ghost home-import">Choisir une photo déjà prise<input type="file" id="fileInputHome" accept="image/*" hidden></label>
+      <button id="btnCodeHome" class="linkish" type="button">Code client</button>
+    </div>
+  </section>
+
   <!-- Écran caméra -->
-  <main id="camera" class="screen active">
+  <main id="camera" class="screen">
     <video id="video" playsinline muted autoplay></video>
     <canvas id="overlay"></canvas>
 
     <header class="topbar">
-      <button id="btnDrive" class="pill" type="button">…</button>
-      <span id="queueBadge" class="pill badge" hidden></span>
+      <button id="btnBack" class="pill back" type="button">✕ Terminer</button>
+      <button id="queueBadge" class="pill badge" type="button" hidden></button>
     </header>
 
     <div id="guide" class="guide neutral">
@@ -49,7 +67,7 @@
     <img id="previewImg" alt="Aperçu de la facture">
     <div id="previewInfo" class="info"></div>
     <div class="actions">
-      <button id="btnRetake" class="secondary" type="button">Reprendre</button>
+      <button id="btnRetake" class="secondary" type="button">Refaire</button>
       <button id="btnSend" class="primary" type="button">Envoyer</button>
     </div>
   </section>
