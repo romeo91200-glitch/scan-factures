@@ -1,5 +1,5 @@
 // Service worker : l'app s'ouvre même sans réseau (les envois attendent le retour du réseau).
-const CACHE = 'scan-factures-v3';
+const CACHE = 'scan-factures-v4';
 const FILES = ['./', 'index.html', 'style.css', 'config.js', 'analyzer.js', 'upload.js', 'app.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
