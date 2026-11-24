@@ -158,7 +158,11 @@ function relierLogicielCompta() {
     secret = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
     props.setProperty('RELAIS_SECRET', secret);
   }
-  const url = ScriptApp.getService().getUrl() || '(déployez d\'abord : Déployer > Nouveau déploiement > Application Web)';
+  let url = ScriptApp.getService().getUrl() || '';
+  // L'adresse donnée par Google est parfois celle de test (/dev), refusée aux autres : on demande alors la bonne.
+  if (!/\/exec$/.test(url)) {
+    url = '(copiez l\'« URL de l\'application Web » qui finit par /exec : Déployer > Gérer les déploiements)';
+  }
   ui.alert('Relier au logiciel de compta',
     'Sur Render (service logiciel-compta > Environment), ajoutez :\n\n' +
     'APP_PHOTO_GOOGLE_URL = ' + url + '\n\n' +
