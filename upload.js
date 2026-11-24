@@ -1,9 +1,27 @@
-// Envoi des photos au serveur de Luis (Google Apps Script), qui les range
-// dans le dossier Drive du client. Le client n'a besoin d'aucun compte Google.
+// Envoi des photos au serveur de réception, qui les range dans le dossier du client.
+// Deux serveurs possibles, même protocole :
+//  - le logiciel de compta (lien généré dans Paramètres > Application photo : ?c=CODE&s=ADRESSE_DU_LOGICIEL),
+//    qui transmet à Google Drive, OneDrive ou au NAS choisi pour le client ;
+//  - à défaut, le serveur Google Apps Script de config.js (UPLOAD_URL).
+// Le client n'a besoin d'aucun compte.
 (function () {
   'use strict';
   const cfg = window.APP_CONFIG || {};
   const KEY = 'client_code';
+  const SRV_KEY = 'server_url';
+
+  // ---- Adresse du logiciel de compta : lue dans le lien (?s=…) puis mémorisée ----
+  function cleanServer(s) {
+    s = String(s || '').trim().replace(/\/+$/, '');
+    return /^https:\/\/[^\s/?#]+(\/[^\s?#]*)?$/.test(s) || /^http:\/\/localhost(:\d+)?$/.test(s) ? s : '';
+  }
+  function readServer() {
+    const fromUrl = cleanServer(new URLSearchParams(location.search).get('s'));
+    if (fromUrl) { try { localStorage.setItem(SRV_KEY, fromUrl); } catch (e) {} return fromUrl; }
+    try { return cleanServer(localStorage.getItem(SRV_KEY)); } catch (e) { return ''; }
+  }
+  const server = readServer();
+  const endpoint = () => (server ? server + '/api/app-photo' : (cfg.UPLOAD_URL || ''));
 
   // ---- Code client : lu dans le lien (?c=CODE) puis mémorisé sur le téléphone ----
   function readCode() {
@@ -26,7 +44,7 @@
     const m = {
       name: 'Scan Factures', short_name: 'Factures', lang: 'fr', display: 'standalone', orientation: 'portrait',
       background_color: '#0f172a', theme_color: '#0f172a',
-      id: base, scope: base, start_url: base + '?c=' + encodeURIComponent(code),
+      id: base, scope: base, start_url: base + '?c=' + encodeURIComponent(code) + (server ? '&s=' + encodeURIComponent(server) : ''),
       icons: [
         { src: base + 'icon-192.png', sizes: '192x192', type: 'image/png' },
         { src: base + 'icon-512.png', sizes: '512x512', type: 'image/png' },
@@ -38,13 +56,13 @@
   }
   installManifest();
 
-  function configured() { return !!cfg.UPLOAD_URL; }
+  function configured() { return !!endpoint(); }
 
   // Vérifie le code auprès du serveur : { ok, client } ou { ok:false, error }
   async function check() {
     if (!configured()) return { ok: false, error: 'Application non configurée (adresse du serveur manquante)' };
     if (!code) return { ok: false, error: 'nocode' };
-    const r = await fetch(cfg.UPLOAD_URL + '?action=check&c=' + encodeURIComponent(code));
+    const r = await fetch(endpoint() + '?action=check&c=' + encodeURIComponent(code));
     return r.json();
   }
 
@@ -59,8 +77,8 @@
 
   async function upload(blob, name, clientCode) {
     const data = await blobToBase64(blob);
-    // text/plain : requête « simple », sans pré-vérification CORS (exigé par Apps Script)
-    const r = await fetch(cfg.UPLOAD_URL, {
+    // text/plain : requête « simple », sans pré-vérification CORS (exigé par Apps Script, accepté par le logiciel)
+    const r = await fetch(endpoint(), {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ c: clientCode || code, name, mime: blob.type || 'image/jpeg', data })

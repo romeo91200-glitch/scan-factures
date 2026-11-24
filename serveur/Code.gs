@@ -24,6 +24,8 @@ function onOpen() {
     .addItem('2. Régler l\'adresse de l\'application', 'reglerAdresseApp')
     .addSeparator()
     .addItem('Préparer les nouveaux clients (dossiers + liens)', 'preparerClients')
+    .addSeparator()
+    .addItem('Relier au logiciel de compta', 'relierLogicielCompta')
     .addToUi();
 }
 
@@ -112,9 +114,11 @@ function doGet(e) {
 }
 
 // Reçoit une photo : POST { c, name, mime, data (base64) }
+// ou, de la part du logiciel de compta : POST { action: 'relais', secret, dossier, name, mime, data }
 function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
+    if (body.action === 'relais') return json_(relais_(body));
     const c = findClient_(body.c);
     if (!c) return json_({ ok: false, error: 'Lien client inconnu ou désactivé' });
     const mime = /^image\/(jpeg|png)$/.test(body.mime) ? body.mime : 'image/jpeg';
@@ -137,6 +141,43 @@ function doPost(e) {
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message || err) });
   }
+}
+
+// ---------------------------------------------------------------- Logiciel de compta
+
+/**
+ * Le logiciel de compta (Paramètres du dossier > Application photo) reçoit les photos
+ * des clients et, pour la destination « Google Drive », les fait écrire ici, dans VOTRE
+ * Drive, dans le dossier choisi pour le client. Protégé par un secret partagé.
+ */
+function relierLogicielCompta() {
+  const ui = SpreadsheetApp.getUi();
+  const props = PropertiesService.getScriptProperties();
+  let secret = props.getProperty('RELAIS_SECRET');
+  if (!secret) {
+    secret = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
+    props.setProperty('RELAIS_SECRET', secret);
+  }
+  const url = ScriptApp.getService().getUrl() || '(déployez d\'abord : Déployer > Nouveau déploiement > Application Web)';
+  ui.alert('Relier au logiciel de compta',
+    'Sur Render (service logiciel-compta > Environment), ajoutez :\n\n' +
+    'APP_PHOTO_GOOGLE_URL = ' + url + '\n\n' +
+    'APP_PHOTO_GOOGLE_SECRET = ' + secret + '\n\n' +
+    'puis Save Changes. Gardez ce secret pour vous.', ui.ButtonSet.OK);
+}
+
+function relais_(body) {
+  const attendu = PropertiesService.getScriptProperties().getProperty('RELAIS_SECRET');
+  if (!attendu || String(body.secret || '') !== attendu) return { ok: false, error: 'Secret invalide : menu Factures > Relier au logiciel de compta' };
+  let folder;
+  try { folder = folderFrom_(String(body.dossier || '')); } catch (err) { return { ok: false, error: 'Dossier Drive introuvable ou sans accès' }; }
+  const mime = /^(image\/(jpeg|png)|text\/plain)$/.test(body.mime) ? body.mime : 'image/jpeg';
+  const bytes = Utilities.base64Decode(String(body.data || ''));
+  if (!bytes.length) return { ok: false, error: 'Fichier vide' };
+  if (bytes.length > MAX_BYTES) return { ok: false, error: 'Photo trop lourde' };
+  const name = String(body.name || '').replace(/[\\/:*?"<>|]/g, '_').slice(0, 120) || ('Facture_' + Date.now() + '.jpg');
+  const file = folder.createFile(Utilities.newBlob(bytes, mime, name));
+  return { ok: true, id: file.getId(), name: name };
 }
 
 // ---------------------------------------------------------------- Outils

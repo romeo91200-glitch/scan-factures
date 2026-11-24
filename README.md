@@ -91,3 +91,17 @@ Si l'app installée ne retrouve pas le code, elle le demande : il figure à la f
 | `test/analyzer.test.js` | Tests de l'analyse (`node test/analyzer.test.js`) |
 
 `BLUR_THRESHOLD` dans `config.js` règle l'exigence de netteté (70 par défaut ; 50 si l'app dit trop souvent « floue », 90 pour être plus strict).
+
+
+## Lien généré par le logiciel de compta
+
+Le logiciel de compta (Paramètres du dossier → **Application photo**) génère pour chaque client un lien
+`…/scan-factures/?c=CODE&s=ADRESSE_DU_LOGICIEL`, avec un QR code, les consignes pour Android ou iPhone et
+une fiche à imprimer. Avec ce lien, l'application envoie les photos au logiciel, qui les range là où le
+cabinet l'a choisi : **Google Drive**, **OneDrive** ou **NAS** (WebDAV). Sans paramètre `s`, l'application
+continue d'utiliser le serveur Apps Script de `config.js`.
+
+Pour la destination Google Drive, le logiciel passe par ce serveur Apps Script (il écrit dans votre Drive) :
+après avoir mis à jour `serveur/Code.gs` (Déployer → Gérer les déploiements → modifier → Nouvelle version),
+menu **Factures → Relier au logiciel de compta** donne les deux valeurs à coller sur Render
+(`APP_PHOTO_GOOGLE_URL`, `APP_PHOTO_GOOGLE_SECRET`).
