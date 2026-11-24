@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Scan Factures</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Écran caméra -->
+  <main id="camera" class="screen active">
+    <video id="video" playsinline muted autoplay></video>
+    <canvas id="overlay"></canvas>
+
+    <header class="topbar">
+      <button id="btnDrive" class="pill" type="button">…</button>
+      <span id="queueBadge" class="pill badge" hidden></span>
+    </header>
+
+    <div id="guide" class="guide neutral">
+      <div id="guideMain">Démarrage de la caméra…</div>
+      <div id="guideMore"></div>
+    </div>
+
+    <footer class="bottombar">
+      <label class="toggle"><input type="checkbox" id="autoCapture" checked> Auto</label>
+      <button id="btnShoot" class="shoot" type="button" aria-label="Prendre la photo"><span></span></button>
+      <button id="btnTorch" class="pill" type="button" hidden>Flash</button>
+      <label class="toggle" id="cropToggle"><input type="checkbox" id="autoCrop" checked> Recadrer</label>
+    </footer>
+
+    <div id="startOverlay" class="start" hidden>
+      <p>L'application a besoin de la caméra pour photographier vos factures.</p>
+      <button id="btnStart" class="primary" type="button">Activer la caméra</button>
+      <p class="small" id="startError"></p>
+      <label class="primary ghost">Importer une photo<input type="file" id="fileInput" accept="image/*" hidden></label>
+    </div>
+
+  </main>
+
+  <!-- Écran aperçu -->
+  <section id="preview" class="screen">
+    <img id="previewImg" alt="Aperçu de la facture">
+    <div id="previewInfo" class="info"></div>
+    <div class="actions">
+      <button id="btnRetake" class="secondary" type="button">Reprendre</button>
+      <button id="btnSend" class="primary" type="button">Envoyer</button>
+    </div>
+  </section>
+
+  <div id="codeOverlay" class="start" hidden>
+    <p><strong>Votre code client</strong></p>
+    <p class="small">Il figure à la fin du lien qui vous a été envoyé (ex. DUPONT-7K3QX9).</p>
+    <input id="codeInput" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="CODE-CLIENT">
+    <button id="btnCode" class="primary" type="button">Valider</button>
+    <p class="small" id="codeError"></p>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <canvas id="work" hidden></canvas>
+  <script src="config.js"></script>
+  <script src="analyzer.js"></script>
+  <script src="upload.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
