@@ -34,27 +34,10 @@
   function setCode(c) {
     code = String(c || '').trim().toUpperCase();
     try { localStorage.setItem(KEY, code); } catch (e) {}
-    installManifest();
   }
 
-  // Manifeste personnalisé : l'app installée sur l'écran d'accueil garde le code client.
-  function installManifest() {
-    if (!code) return;
-    const base = new URL('./', location.href).href;
-    const m = {
-      name: 'Scan Factures', short_name: 'Factures', lang: 'fr', display: 'standalone', orientation: 'portrait',
-      background_color: '#0f172a', theme_color: '#0f172a',
-      id: base, scope: base, start_url: base + '?c=' + encodeURIComponent(code) + (server ? '&s=' + encodeURIComponent(server) : ''),
-      icons: [
-        { src: base + 'icon-192.png', sizes: '192x192', type: 'image/png' },
-        { src: base + 'icon-512.png', sizes: '512x512', type: 'image/png' },
-        { src: base + 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
-      ]
-    };
-    const link = document.querySelector('link[rel="manifest"]');
-    if (link) link.href = 'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(m));
-  }
-  installManifest();
+  // Installation : le manifeste n'a pas de start_url, donc Android et iPhone rouvrent l'app
+  // sur l'adresse du lien (avec ?c=CODE&s=…) ; le code et le serveur sont aussi gardés sur le téléphone.
 
   function configured() { return !!endpoint(); }
 
